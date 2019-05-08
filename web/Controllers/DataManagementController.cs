@@ -25,7 +25,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Threading.Tasks;
 
-namespace DesignCheck.Controllers
+namespace ExportToUnity.Controllers
 {
     public class DataManagementController : ControllerBase
     {

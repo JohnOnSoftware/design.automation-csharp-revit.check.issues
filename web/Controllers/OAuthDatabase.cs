@@ -23,7 +23,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace DesignCheck.Controllers
+namespace ExportToUnity.Controllers
 {
     public static class OAuthDB
     {
@@ -84,7 +84,11 @@ namespace DesignCheck.Controllers
             var filterBuilder = Builders<BsonDocument>.Filter;
             var filter = filterBuilder.Eq("_id", userId);
             var users = Database.GetCollection<BsonDocument>("users");
-            try { long count = await users.CountAsync(filter); return (count == 1); }
+            try
+            {
+                long count = await users.CountDocumentsAsync(filter);
+                return (count == 1);
+            }
             catch (Exception e) { Console.WriteLine(e); return false; }
         }
 

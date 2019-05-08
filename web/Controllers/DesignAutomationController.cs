@@ -25,7 +25,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 
-namespace DesignCheck.Controllers
+namespace ExportToUnity.Controllers
 {
     public class DesignAutomationController : ControllerBase
     {
@@ -36,8 +36,8 @@ namespace DesignCheck.Controllers
         }
 
         [HttpPost]
-        [Route("api/forge/callback/designautomation/{userId}/{hubId}/{projectId}/{versionId}")]
-        public IActionResult OnReadyDesignCheck(string userId, string hubId, string projectId, string versionId, [FromBody]dynamic body)
+        [Route("api/forge/callback/designautomation/{userId}/{hubId}/{projectId}/{versionId}/{fileName}")]
+        public IActionResult OnReadyExportToUnity(string userId, string hubId, string projectId, string versionId, string fileName, [FromBody]dynamic body)
         {
             // catch any errors, we don't want to return 500
             try
@@ -54,7 +54,7 @@ namespace DesignCheck.Controllers
                 */
 
                 // use Hangfire to schedule a job
-                BackgroundJob.Schedule(() => CreateIssues(userId, hubId, projectId, versionId, _env.WebRootPath, Request.Host.ToString()), TimeSpan.FromSeconds(1));
+                BackgroundJob.Schedule(() => CreateIssues(userId, hubId, projectId, versionId, fileName, _env.WebRootPath, Request.Host.ToString()), TimeSpan.FromSeconds(1));
             }
             catch { }
 
@@ -62,7 +62,7 @@ namespace DesignCheck.Controllers
             return Ok();
         }
 
-        public async Task CreateIssues(string userId, string hubId, string projectId, string versionId, string contentRootPath, string host)
+        public async Task CreateIssues(string userId, string hubId, string projectId, string versionId, string fileName, string contentRootPath, string host)
         {
             string bucketName = "revitdesigncheck" + DesignAutomation4Revit.NickName.ToLower();
             var awsCredentials = new Amazon.Runtime.BasicAWSCredentials(Credentials.GetAppSetting("AWS_ACCESS_KEY"), Credentials.GetAppSetting("AWS_SECRET_KEY"));
@@ -72,14 +72,14 @@ namespace DesignCheck.Controllers
 
             // create AWS Bucket
             if (!await client.DoesS3BucketExistAsync(bucketName)) return;
-            Uri downloadFromS3 = new Uri(client.GeneratePreSignedURL(bucketName, resultFilename, DateTime.Now.AddMinutes(10), null));
+            Uri downloadFromS3 = new Uri(client.GeneratePreSignedURL(bucketName, fileName, DateTime.Now.AddMinutes(10), null));
 
 
             // ToDo: is there a better way?
-            string results = Path.Combine(contentRootPath, resultFilename);
+            string results = Path.Combine(contentRootPath, fileName);
             var keys = await client.GetAllObjectKeysAsync(bucketName, null, null);
-            if (!keys.Contains(resultFilename)) return; // file is not there
-            await client.DownloadToFilePathAsync(bucketName, resultFilename, results, null);
+            if (!keys.Contains(fileName)) return; // file is not there
+            await client.DownloadToFilePathAsync(bucketName, fileName, results, null);
             string contents = System.IO.File.ReadAllText(results);
 
             Credentials credentials = await Credentials.FromDatabaseAsync(userId);
@@ -99,8 +99,8 @@ namespace DesignCheck.Controllers
             await issues.CreateIssue(credentials.TokenInternal, containerId, itemId, version, title, description);
 
             // only delete if it completes
-            System.IO.File.Delete(resultFilename);
-            await client.DeleteObjectAsync(bucketName, resultFilename);
+            System.IO.File.Delete(fileName);
+            await client.DeleteObjectAsync(bucketName, fileName);
         }
     }
 }

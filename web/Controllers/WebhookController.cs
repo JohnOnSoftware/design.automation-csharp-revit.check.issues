@@ -24,7 +24,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace DesignCheck.Controllers
+namespace ExportToUnity.Controllers
 {
     public class WebhookController : ControllerBase
     {
@@ -136,6 +136,7 @@ namespace DesignCheck.Controllers
                 string projectId = body["hook"]["hookAttribute"]["projectId"].ToString();
                 string hubId = body["hook"]["hookAttribute"]["hubId"].ToString();
                 string versionId = body["resourceUrn"].ToString();
+                string fileName = body["payload"]["name"].ToString();
 
                 // do you want to filter events??
                 if (eventType != "dm.version.added") return Ok();
@@ -152,7 +153,7 @@ namespace DesignCheck.Controllers
                 */
 
                 // use Hangfire to schedule a job
-                BackgroundJob.Schedule(() => StartDesignCheck(userId, hubId, projectId, versionId, _env.WebRootPath), TimeSpan.FromSeconds(1));
+                BackgroundJob.Schedule(() => StartExportToUnity(userId, hubId, projectId, versionId, _env.WebRootPath, fileName), TimeSpan.FromSeconds(1));
             }
             catch { }
 
@@ -160,12 +161,12 @@ namespace DesignCheck.Controllers
             return Ok();
         }
 
-        public async static Task StartDesignCheck(string userId, string hubId, string projectId, string versionId, string contentRootPath)
+        public async static Task StartExportToUnity(string userId, string hubId, string projectId, string versionId, string contentRootPath, string fileName)
         {
             try
             {
                 DesignAutomation4Revit daRevit = new DesignAutomation4Revit();
-                await daRevit.StartDesignCheck(userId, hubId, projectId, versionId, contentRootPath);
+                await daRevit.StartExportToUnity(userId, hubId, projectId, versionId, contentRootPath, fileName);
             }
             catch (Exception e)
             {

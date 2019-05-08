@@ -36,13 +36,13 @@ using WorkItemStatus = Autodesk.Forge.DesignAutomation.Model.WorkItemStatus;
 
 
 
-namespace DesignCheck.Controllers
+namespace ExportToUnity.Controllers
 {
     public class DesignAutomation4Revit
     {
-        private const string APPNAME = "FindColumnsApp";
-        private const string APPBUNBLENAME = "FindColumnsIO.zip";
-        private const string ACTIVITY_NAME = "FindColumnsActivity";
+        private const string APPNAME = "RevitToU3DAPP";
+        private const string APPBUNBLENAME = "RevitToU3DAPP.zip";
+        private const string ACTIVITY_NAME = "RevitToU3DActivity";
         private const string ENGINE_NAME = "Autodesk.Revit+2019";
 
         /// NickName.AppBundle+Alias
@@ -50,7 +50,12 @@ namespace DesignCheck.Controllers
         /// NickName.Activity+Alias
         private string ActivityFullName { get { return string.Format("{0}.{1}+{2}", Utils.NickName, ACTIVITY_NAME, Alias); } }
         /// Prefix for AppBundles and Activities
-        public static string NickName { get { return Credentials.GetAppSetting("FORGE_CLIENT_ID"); } }
+        public static string NickName {
+            get {
+                var nickName = Credentials.GetAppSetting("FORGE_DESIGN_AUTOMATION_NICKNAME");
+                return !String.IsNullOrEmpty(nickName) ? nickName : Credentials.GetAppSetting("FORGE_CLIENT_ID");
+            }
+        }
         /// Alias for the app (e.g. DEV, STG, PROD). This value may come from an environment variable
         public static string Alias { get { return "dev"; } }
         // Design Automation v3 API
@@ -92,7 +97,7 @@ namespace DesignCheck.Controllers
             {
                 // check if ZIP with bundle is here
                 string packageZipPath = Path.Combine(contentRootPath + "/bundles/", APPBUNBLENAME);
-                if (!File.Exists(packageZipPath)) throw new Exception("FindColumns appbundle not found at " + packageZipPath);
+                if (!File.Exists(packageZipPath)) throw new Exception("RevitToU3DAPP appbundle not found at " + packageZipPath);
 
                 AppBundle appBundleSpec = new AppBundle()
                 {
@@ -136,7 +141,7 @@ namespace DesignCheck.Controllers
 
             if (!existActivity)
             {
-                string commandLine = string.Format(@"$(engine.path)\\revitcoreconsole.exe /i $(args[rvtFile].path) /al $(appbundles[{0}].path)", APPNAME);
+                string commandLine = string.Format(@"$(engine.path)\\revitcoreconsole.exe /i $(args[inputFile].path) /al $(appbundles[{0}].path)", APPNAME);
                 Activity activitySpec = new Activity()
                 {
                     Id = ACTIVITY_NAME,
@@ -145,8 +150,8 @@ namespace DesignCheck.Controllers
                     Engine = ENGINE_NAME,
                     Parameters = new Dictionary<string, Parameter>()
                     {
-                        { "rvtFile", new Parameter() { Description = "Input Revit File", LocalName = "$(rvtFile)", Ondemand = false, Required = true, Verb = Verb.Get, Zip = false } },
-                        { "result", new Parameter() { Description = "Resulting JSON File", LocalName = "result.txt", Ondemand = false, Required = true, Verb = Verb.Put, Zip = false } }
+                        { "inputFile", new Parameter() { Description = "Input Revit File", LocalName = "$(inputFile)", Ondemand = false, Required = true, Verb = Verb.Get, Zip = false } },
+                        { "outputFile", new Parameter() { Description = "Export to Unity db", LocalName = "Data01.db", Ondemand = false, Required = true, Verb = Verb.Put, Zip = false } }
                     }
                 };
                 Activity newActivity = await _designAutomation.CreateActivityAsync(activitySpec);
@@ -201,30 +206,32 @@ namespace DesignCheck.Controllers
             };
         }
 
-        public async Task StartDesignCheck(string userId, string hubId, string projectId, string versionId, string contentRootPath)
+        public async Task StartExportToUnity(string userId, string hubId, string projectId, string versionId, string contentRootPath, string fileName)
         {
             // uncomment these lines to clear all appbundles & activities under your account
             //await _designAutomation.DeleteForgeAppAsync("me");
 
             Credentials credentials = await Credentials.FromDatabaseAsync(userId);
 
-            await EnsureAppBundle(contentRootPath);
-            await EnsureActivity();
+            //await EnsureAppBundle(contentRootPath);
+            //await EnsureActivity();
 
-            string resultFilename = versionId.Base64Encode() + ".txt";
-            string callbackUrl = string.Format("{0}/api/forge/callback/designautomation/{1}/{2}/{3}/{4}", Credentials.GetAppSetting("FORGE_WEBHOOK_URL"), userId, hubId, projectId, versionId.Base64Encode());
+            //string resultFilename = versionId.Base64Encode() + ".txt";
+            string resultFilename = fileName.Split('.')[0] + ".db";
+            string callbackUrl = string.Format("{0}/api/forge/callback/designautomation/{1}/{2}/{3}/{4}/{5}", Credentials.GetAppSetting("FORGE_WEBHOOK_URL"), userId, hubId, projectId, versionId.Base64Encode(), resultFilename);
 
             WorkItem workItemSpec = new WorkItem()
             {
                 ActivityId = ActivityFullName,
                 Arguments = new Dictionary<string, IArgument>()
                 {
-                    { "rvtFile", await BuildDownloadURL(credentials.TokenInternal, projectId, versionId) },
-                    { "result",  await BuildUploadURL(resultFilename) },
+                    { "inputFile", await BuildDownloadURL(credentials.TokenInternal, projectId, versionId) },
+                    { "outputFile",  await BuildUploadURL(resultFilename) },
                     { "onComplete", new XrefTreeArgument { Verb = Verb.Post, Url = callbackUrl } }
                 }
             };
             WorkItemStatus workItemStatus = await _designAutomation.CreateWorkItemsAsync(workItemSpec);
+            Console.WriteLine(workItemStatus.Id);
         }
     }
 }

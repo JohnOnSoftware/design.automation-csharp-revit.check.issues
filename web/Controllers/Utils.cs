@@ -33,7 +33,7 @@ using Activity = Autodesk.Forge.Model.DesignAutomation.v3.Activity;
 using WorkItem = Autodesk.Forge.Model.DesignAutomation.v3.WorkItem;
 using WorkItemsApi = Autodesk.Forge.DesignAutomation.v3.WorkItemsApi;
 
-namespace DesignCheck.Controllers
+namespace ExportToUnity.Controllers
 {
     public static class Utils
     {
@@ -42,7 +42,10 @@ namespace DesignCheck.Controllers
         {
             get
             {
-                return Credentials.GetAppSetting("FORGE_CLIENT_ID");
+                var nickName = Credentials.GetAppSetting("FORGE_DESIGN_AUTOMATION_NICKNAME");
+                return !String.IsNullOrEmpty(nickName) ? nickName : Credentials.GetAppSetting("FORGE_CLIENT_ID");
+
+                //return Credentials.GetAppSetting("FORGE_CLIENT_ID");
             }
         }
 
